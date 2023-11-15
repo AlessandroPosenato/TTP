@@ -1,23 +1,36 @@
-const readline = require('readline').createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
+var zmq = require('zeromq'), sock = zmq.socket('pull');
 
-const childProcess = require('child_process');
 const { WebcastPushConnection } = require('tiktok-live-connector');
 const fs = require('fs'); 
 var userData = new Map();
+const logFilePath = '/home/mod/Desktop/ttp/summaries.txt';
 
-const options =
-"Actions list:"
-+"\nPress 'a' to add a user"
-+"\nPress 'r' to remove a user"
-+"\nPress 'q' to quit\n";
+sock.connect('tcp://127.0.0.1:3000');
 
-var userIds = [];
-userIds[0] = 'jkbnjs2001';
-userIds[1] = 'its_me_playgod';
-userIds[2] = 'diasgta5kz';
+sock.on('message', function(msg){
+    let command = msg.toString();
+    switch(command[0]){
+        case '+':
+            command = command.slice(1);
+            userData.set(command,
+                {
+                username: command,
+                startDate: "dd/mm/yyyy",
+                timeElapsed: "0",
+                coins: 0,
+                donations: 0,
+                cpd: 0,
+                lastDonation: "never",
+                ended: false});
+            analyze(command);
+            break;
+
+        case '-':
+            command = command.slice(1);
+            userData.delete(command);
+            break;
+    }
+});
 
 function msToTime(ms) {
     let seconds = (ms / 1000).toFixed(1);
@@ -56,8 +69,8 @@ function print(data, key, map){
     }
 }
 
-function analyze(item, index, arr) {
-    let tiktokLiveConnection = new WebcastPushConnection(item);
+function analyze(key) {
+    let tiktokLiveConnection = new WebcastPushConnection(key);
     
     tiktokLiveConnection.connect().then(state => {
         console.info(`Connected to roomId ${state.roomId}`);
@@ -75,13 +88,18 @@ function analyze(item, index, arr) {
 
 
     tiktokLiveConnection.on('gift', data => {
+        if(!userData.has(key)){
+            tiktokLiveConnection.disconnect();
+            return;
+        }
+
         donations++;
         coins += data.diamondCount;
         mostRecent = new Date();
-
-        userData.set(item,
+        
+        userData.set(key,
             {
-            username: item,
+            username: key,
             startDate: startDate.toLocaleString(),
             timeElapsed: msToTime(Date.now()-startTime),
             coins: coins,
@@ -89,45 +107,44 @@ function analyze(item, index, arr) {
             cpd: coins/donations,
             lastDonation: mostRecent.toLocaleString(),
             ended: false});
+        
 
         console.clear();
-        console.log(options);
         userData.forEach(print);
     })
 
     tiktokLiveConnection.on('disconnected', () => {
-        let connected = false;
 
-        for(let i = 0; i < 40 && !connected; i++){ //Tries reconnecting every 15sec for 15min
-            new Promise(resolve => setTimeout(resolve, 15000));
+        if(userData.has(key)){
+            new Promise(resolve => setTimeout(resolve, 30000));
             tiktokLiveConnection.connect().then(state => {
                 console.info(`Connected to roomId ${state.roomId}`);
-                connected = true;
+                return;
             }).catch(err => {
                 console.error('Failed to connect', err);
             })
         }
 
-        if(!connected){
-            let timeElapsed = Date.now()-startTime;
-            let cs = coins/(timeElapsed/1000);
+        let timeElapsed = Date.now()-startTime;
+        let cs = coins/(timeElapsed/1000);
 
-            let logString = 
-            `Username: ${item}\n`+
-            `Analysis starting time: ${startDate.toLocaleString()}\n`+
-            `Analysis duration: ${msToTime(timeElapsed)}\n`+
-            `Total amount of coins: ${coins}\n`+
-            `Coins per second: ${cs}\n`+
-            `Estimated hourly rate: ${3600*cs}\n`+
-            `Total amount of donations: ${donations}\n`+
-            `Average amount of coind per donation: ${coins/donations}\n`+
-            `Last donation: ${mostRecent.toLocaleString()}\n`+
-            "______________________________________\n";
+        let logString = 
+        `Username: ${key}\n`+
+        `Analysis starting time: ${startDate.toLocaleString()}\n`+
+        `Analysis duration: ${msToTime(timeElapsed)}\n`+
+        `Total amount of coins: ${coins}\n`+
+        `Coins per second: ${cs}\n`+
+        `Estimated hourly rate: ${3600*cs}\n`+
+        `Total amount of donations: ${donations}\n`+
+        `Average amount of coind per donation: ${coins/donations}\n`+
+        `Last donation: ${mostRecent.toLocaleString()}\n`+
+        "______________________________________\n";
 
-            fs.appendFileSync('/home/mod/Desktop/ttp/summaries.txt', logString);
+        fs.appendFileSync(logFilePath, logString);
 
-            userData.set(item,
-                {username: item,
+        if(userData.has(key)){
+            userData.set(key,
+                {username: key,
                 startDate: startDate.toLocaleString(),
                 timeElapsed: msToTime(timeElapsed),
                 coins: coins,
@@ -137,12 +154,8 @@ function analyze(item, index, arr) {
                 cpd: coins/donations,
                 lastDonation: mostRecent.toLocaleString(),
                 ended: true});
-
             console.clear();
-            console.log(options);
             userData.forEach(print);
         }
     })
 }
-
-userIds.forEach(analyze)
