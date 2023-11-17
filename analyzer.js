@@ -27,7 +27,9 @@ sock.on('message', function(msg){
 
         case '-':
             command = command.slice(1);
+            let tmp = userData.get(command);
             userData.delete(command);
+            tmp.connection.disconnect();
             break;
     }
 });
@@ -63,7 +65,7 @@ function print(data, key, map){
         console.log(`-Coins per second: ${data.cps}😶`);
         console.log(`-Estimated hourly rate: ${data.cph}😳`);
         console.log(`-Total amount of donations: ${data.donations}`);
-        console.log(`-Average amount of coind per donation: ${data.cpd}`);
+        console.log(`-Average amount of coins per donation: ${data.cpd}`);
         console.log(`-Last donation: ${data.lastDonation}`);
         console.log("______________________________________");
     }
@@ -99,6 +101,7 @@ function analyze(key) {
         
         userData.set(key,
             {
+            connection: tiktokLiveConnection,
             username: key,
             startDate: startDate.toLocaleString(),
             timeElapsed: msToTime(Date.now()-startTime),
@@ -114,11 +117,12 @@ function analyze(key) {
     })
 
     tiktokLiveConnection.on('disconnected', () => {
-
+        let connected = false;
         if(userData.has(key)){
             new Promise(resolve => setTimeout(resolve, 30000));
             tiktokLiveConnection.connect().then(state => {
                 console.info(`Connected to roomId ${state.roomId}`);
+                connected = true;
                 return;
             }).catch(err => {
                 console.error('Failed to connect', err);
@@ -128,19 +132,21 @@ function analyze(key) {
         let timeElapsed = Date.now()-startTime;
         let cs = coins/(timeElapsed/1000);
 
-        let logString = 
-        `Username: ${key}\n`+
-        `Analysis starting time: ${startDate.toLocaleString()}\n`+
-        `Analysis duration: ${msToTime(timeElapsed)}\n`+
-        `Total amount of coins: ${coins}\n`+
-        `Coins per second: ${cs}\n`+
-        `Estimated hourly rate: ${3600*cs}\n`+
-        `Total amount of donations: ${donations}\n`+
-        `Average amount of coind per donation: ${coins/donations}\n`+
-        `Last donation: ${mostRecent.toLocaleString()}\n`+
-        "______________________________________\n";
-
-        fs.appendFileSync(logFilePath, logString);
+        if(!connected){
+            let logString = 
+            `Username: ${key}\n`+
+            `Analysis starting time: ${startDate.toLocaleString()}\n`+
+            `Analysis duration: ${msToTime(timeElapsed)}\n`+
+            `Total amount of coins: ${coins}\n`+
+            `Coins per second: ${cs}\n`+
+            `Estimated hourly rate: ${3600*cs}\n`+
+            `Total amount of donations: ${donations}\n`+
+            `Average amount of coind per donation: ${coins/donations}\n`+
+            `Last donation: ${mostRecent.toLocaleString()}\n`+
+            "______________________________________\n";
+    
+            fs.appendFileSync(logFilePath, logString);
+        }
 
         if(userData.has(key)){
             userData.set(key,
