@@ -30,6 +30,8 @@ sock.on('message', function(msg){
             let tmp = userData.get(command);
             userData.delete(command);
             tmp.connection.disconnect();
+            console.clear();
+            userData.forEach(print);
             break;
     }
 });
@@ -90,11 +92,6 @@ function analyze(key) {
 
 
     tiktokLiveConnection.on('gift', data => {
-        if(!userData.has(key)){
-            tiktokLiveConnection.disconnect();
-            return;
-        }
-
         donations++;
         coins += data.diamondCount;
         mostRecent = new Date();
@@ -150,7 +147,8 @@ function analyze(key) {
 
         if(userData.has(key)){
             userData.set(key,
-                {username: key,
+                {connection: tiktokLiveConnection,
+                username: key,
                 startDate: startDate.toLocaleString(),
                 timeElapsed: msToTime(timeElapsed),
                 coins: coins,
