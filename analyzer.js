@@ -4,7 +4,6 @@ const fs = require('fs'); //Library for writing to file
 const {Client, Query} = require('pg'); //Library for connecting to postgresql DB
 
 var userData = new Map(); //Map that contains users TikTok lives data that we want to track. The users userId is used as the key
-const logFilePath = '/home/mod/Desktop/ttp/summaries.txt';
 const client = new Client({ //DB setup parameters
     host: "localhost",
     user: "postgres",
@@ -39,7 +38,8 @@ sock.on('message', function(msg){ //IPC message handling
             command = command.slice(1);
             let tmp = userData.get(command);
             userData.delete(command);
-            tmp.connection.disconnect();
+            if(tmp.connection != undefined)
+                tmp.connection.disconnect();
             console.clear();
             userData.forEach(print);
             break;
