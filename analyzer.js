@@ -4,6 +4,7 @@ const fs = require('fs'); //Library for writing to file
 const {Client, Query} = require('pg'); //Library for connecting to postgresql DB
 
 var userData = new Map(); //Map that contains users TikTok lives data that we want to track. The users userId is used as the key
+var printData = [];
 const client = new Client({ //DB setup parameters
     host: "localhost",
     user: "postgres",
@@ -40,8 +41,9 @@ sock.on('message', function(msg){ //IPC message handling
             userData.delete(command);
             if(tmp.connection != undefined)
                 tmp.connection.disconnect();
+            printData.pop();
             console.clear();
-            userData.forEach(print);
+            print();
             break;
     }
 });
@@ -67,7 +69,43 @@ function msToTime(ms) {
     else return days + " Days"
 }
 
-function print(data, key, map){ //Function that prints the data contained in the userData map
+function print(){ //Function that prints the data contained in the userData map
+    let tmp;
+    for (let [key, value] of userData) {
+        printData.pop();
+    }
+    
+    for (let [key, value] of userData) {
+        if(!value.ended){
+            tmp = {
+                username: value.username,
+                startDate: value.startDate,
+                timeElapsed: value.timeElapsed,
+                coins: value.coins,
+                donations: value.donations,
+                cpd: value.cpd,
+                lastDonation: value.lastDonation,
+                ended: value.ended};
+        }
+        else{
+            tmp = {
+                username: value.username,
+                startDate: value.startDate,
+                timeElapsed: value.timeElapsed,
+                coins: value.coins,
+                cps: value.cps,
+                cph: value.cph,
+                donations: value.donations,
+                cpd: value.cpd,
+                lastDonation: value.lastDonation,
+                ended: value.ended};
+        }
+        printData.push(tmp);
+    }
+
+    console.table(printData);
+
+    /*
     if(!data.ended){
         console.log(`Username: ${data.username}`);
         console.log(`Start time: ${data.startDate}`);
@@ -91,6 +129,7 @@ function print(data, key, map){ //Function that prints the data contained in the
         console.log(`-Last donation: ${data.lastDonation}`);
         console.log("______________________________________");
     }
+    */
 }
 
 function queryDB(query){
@@ -139,7 +178,7 @@ function analyze(key) { //Function for scraping TikTok Live data
         
         //After updating the data we print it to console
         console.clear();
-        userData.forEach(print);
+        print();
     })
     //Event triggered when the livestream ends. Gets triggered both by the the user ending it and by loss of connection
     //Also triggered if the live gets banned by a moderator
@@ -182,7 +221,7 @@ function analyze(key) { //Function for scraping TikTok Live data
                 ended: true});
             //We print the latest data
             console.clear();
-            userData.forEach(print);
+            print();
         }
 
         if(!userData.has(key)){
