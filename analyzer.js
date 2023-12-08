@@ -8,6 +8,7 @@ var printData = [];
 const client = new Client({ //DB setup parameters
     host: "localhost",
     user: "postgres",
+    password:"canial",
     port: 5432,
     database: "ttp"
 })
@@ -28,6 +29,8 @@ sock.on('message', function(msg){ //IPC message handling
                 startDate: "dd/mm/yyyy",
                 timeElapsed: "0",
                 coins: 0,
+                cps:0 ,
+                cph: 0,
                 donations: 0,
                 cpd: 0,
                 lastDonation: "never",
@@ -76,30 +79,17 @@ function print(){ //Function that prints the data contained in the userData map
     }
     
     for (let [key, value] of userData) {
-        if(!value.ended){
-            tmp = {
-                username: value.username,
-                startDate: value.startDate,
-                timeElapsed: value.timeElapsed,
-                coins: value.coins,
-                donations: value.donations,
-                cpd: value.cpd,
-                lastDonation: value.lastDonation,
-                ended: value.ended};
-        }
-        else{
-            tmp = {
-                username: value.username,
-                startDate: value.startDate,
-                timeElapsed: value.timeElapsed,
-                coins: value.coins,
-                cps: value.cps,
-                cph: value.cph,
-                donations: value.donations,
-                cpd: value.cpd,
-                lastDonation: value.lastDonation,
-                ended: value.ended};
-        }
+        tmp = {
+            username: value.username,
+            startDate: value.startDate,
+            timeElapsed: value.timeElapsed,
+            coins: value.coins,
+            cps: value.cps.toPrecision(8),
+            cph: value.cph.toPrecision(8),
+            donations: value.donations,
+            cpd: value.cpd.toPrecision(5),
+            lastDonation: value.lastDonation,
+            ended: value.ended};
         printData.push(tmp);
     }
 
@@ -157,12 +147,17 @@ function analyze(key) { //Function for scraping TikTok Live data
     let startDate = new Date(); //Start of the analysis in Date object used for displaying purposes
     let mostRecent = new Date(); //Variable to track the most recent donation
     let coins = 0; //Number of coins
+    let timeElapsed = Date.now()-startTime;
+    let cs = coins/(timeElapsed/1000);
 
 
     tiktokLiveConnection.on('gift', data => { //Event triggered when the broadcaster receives a gift
         donations++;
         coins += data.diamondCount;
         mostRecent = new Date(); //Update the most recent donation
+        timeElapsed = Date.now()-startTime;
+        cs = coins/(timeElapsed/1000);
+
         
         userData.set(key, //We set the user's updated data in the map
             {
@@ -171,6 +166,8 @@ function analyze(key) { //Function for scraping TikTok Live data
             startDate: startDate.toLocaleString("ja-JP"),
             timeElapsed: msToTime(Date.now()-startTime),
             coins: coins,
+            cps: cs,
+            cph: (cs*3600),
             donations: donations,
             cpd: coins/donations,
             lastDonation: mostRecent.toLocaleString("ja-JP"),
@@ -183,8 +180,8 @@ function analyze(key) { //Function for scraping TikTok Live data
     //Event triggered when the livestream ends. Gets triggered both by the the user ending it and by loss of connection
     //Also triggered if the live gets banned by a moderator
     tiktokLiveConnection.on('disconnected', () => {
-        let timeElapsed = Date.now()-startTime;
-        let cs = coins/(timeElapsed/1000);
+        timeElapsed = Date.now()-startTime;
+        cs = coins/(timeElapsed/1000);
         let queryString =
         `INSERT INTO sessions (start, duration, coins, donations, uid, sid)`+
         ` VALUES ($1::text, $2::integer, $3::integer, $4::integer, $5::text, DEFAULT);`;
